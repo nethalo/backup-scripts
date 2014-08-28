@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Backup binlog files using mysqlbinlog 5.6
+# Logic Backup MySQL data using MyDumper tool
 # Daniel Guzman Burgos <daniel.guzman.burgos@percona.com>
 #
 
@@ -17,9 +17,12 @@ mysqlUser=root
 mysqlPort=3306
 #remoteHost=192.168.1.105
 remoteHost=localhost
-backupPath="/root/backups"
+backupPath="/root/backups/$(date +%Y%m%d)/"
 numberThreads=4
-respawn=3 # How many attempts to restart the mysqlbinlog process try
+# Retention times #
+weekly=4
+daily=7
+######
 email="daniel.guzman.burgos@percona.com"
 
 # Function definitions
@@ -34,7 +37,7 @@ function sendAlert () {
 
 function destructor () {
         sendAlert
-        rm -f "$lockFile" #"$errorFile"
+        rm -f "$lockFile" "$errorFile"
 }
 
 # Setting TRAP in order to capture SIG and cleanup things
@@ -46,7 +49,7 @@ function verifyExecution () {
         if [ $exitCode -ne "0" ]
         then
                 msg="[ERROR] Failed execution. ${2}"
-                echo "$msg" >> ${errorfile}
+                echo "$msg" >> ${errorFile}
                 if [ "$mustDie" == "true" ]; then
                         exit 1
                 else
@@ -83,12 +86,16 @@ function runMysqldump () {
 	
 	verifyMysqldump
 
+	out=$(mkdir -p $backupPath)
+	verifyExecution "$?" "Can't create backup dir $backupPath. $out" true
+	logInfo "[Info] $backupPath exists"
+
 	local schemas=$(mysql -u${mysqlUser} -h${remoteHost} --port=${3306} -N -e"select schema_name from information_schema.schemata where schema_name not in ('information_schema', 'performance_schema')")
 	if [ ! -z "$schemas" ]; then
 		for i in $schemas; do
-			out=$(mysqldumpi -u${mysqlUser} -h${remoteHost} --port=${3306} -d $i | gzip > $backupPath/${i}_schema.sql.gz 2>&1)
+			out=$(mysqldump -u${mysqlUser} -h${remoteHost} --port=${3306} -d $i | gzip > $backupPath/${i}_schema.sql.gz 2>&1)
 			verifyExecution "$?" "Problems dumping schema for db $i. $out"
-			logInfo "[Info] Dumping $i schema with mysqldump"
+			logInfo "[OK] Dumping $i schema with mysqldump"
 		done
 		return
 	fi
@@ -105,9 +112,32 @@ function verifyMydumperBin () {
 function runMydumper () {
 
 	verifyMydumperBin
-	out=$(mydumper --user=${mysqlUser} --outputdir=${backupPath} --host=${remoteHost} --port=${mysqlPort} --threads=${numberThreads} --compress --kill-long-queries --no-schemas --verbose=3 2&>1)
+	logInfo "[Info] Dumping data with MyDumper.....start"
+	out=$(mydumper --user=${mysqlUser} --outputdir=${backupPath} --host=${remoteHost} --port=${mysqlPort} --threads=${numberThreads} --compress --kill-long-queries --no-schemas --verbose=3 &>> $logFile)
 	verifyExecution "$?" "Couldn't execute MyDumper. $out" true
-        logInfo "[Info] Dumping data with MyDumper."
+
+	logInfo "[Info] Dumping data with MyDumper.....end"
+}
+
+function removeOldBackup () {
+	# Leave 7 daily (Remove older than 7 days, unless is from a Sunday)
+	# Leave 4 weekly (Remove older than 4 weeks)
+
+	rootPath=$(dirname $backupPath 2>&1)
+	verifyExecution "$?" "Couldn't find backup path. $rootPath" true
+
+	pushd $rootPath &> /dev/null
+	
+	for i in $(ls -1); do
+		day=$(cat $rootPath/$i/.metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}')
+		weekDay=$(date --date="$day" +%u)
+		if [ $weekDay -eq 7 ]; then
+			continue
+		fi
+		rm -rf $rootPath/$i
+	done
+	
+	popd &> /dev/null
 }
 
 setLockFile
