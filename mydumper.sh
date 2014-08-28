@@ -7,6 +7,7 @@
 clear
 
 set -o pipefail
+
 # Initial values
 
 lockFile="/var/lock/mydumper-pull.lock"
@@ -120,21 +121,41 @@ function runMydumper () {
 }
 
 function removeOldBackup () {
-	# Leave 7 daily (Remove older than 7 days, unless is from a Sunday)
-	# Leave 4 weekly (Remove older than 4 weeks)
 
 	rootPath=$(dirname $backupPath 2>&1)
 	verifyExecution "$?" "Couldn't find backup path. $rootPath" true
 
 	pushd $rootPath &> /dev/null
+	daysAgo=$(date -d "$daily days ago" +%s)
+	weeksAgo=$(date -d "$weekly weeks ago" +%s)
 	
+	logInfo "[Info] Removing old backups"
 	for i in $(ls -1); do
-		day=$(cat $rootPath/$i/.metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}')
+		day=$(cat $rootPath/$i/.metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}' 2>&1)
+		verifyExecution "$?" "Couldn't find $rootPath/$i/.metadata file. $day"
+
+		backupTs=$(date --date="$day" +%s)
+
+		# Remove weekly backups older than $weekly
+                if [ $weeksAgo -gt $backupTs  ]; then
+                        out=$(rm -rf $rootPath/$i 2>&1)
+			verifyExecution "$?" "Error removing $rootPath/${i}. $out"
+                        logInfo "  [OK] Removed $rootPath/$i weekly backup"
+                fi
+		
+		# Do not remove daily backup if its from Sunday
 		weekDay=$(date --date="$day" +%u)
 		if [ $weekDay -eq 7 ]; then
-			continue
+			continue;
 		fi
-		rm -rf $rootPath/$i
+		
+		# Remove daily backups older than $daily
+		if [ $daysAgo -gt $backupTs  ]; then
+			out=$(rm -rf $rootPath/$i 2>&1)
+			verifyExecution "$?" "Error removing $rootPath/${i}. $out"
+			logInfo "  [OK] Removed $rootPath/$i daily backup"
+		fi
+
 	done
 	
 	popd &> /dev/null
@@ -143,3 +164,4 @@ function removeOldBackup () {
 setLockFile
 runMysqldump
 runMydumper
+removeOldBackup
