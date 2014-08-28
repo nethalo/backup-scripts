@@ -5,6 +5,8 @@
 #
 
 clear
+
+set -o pipefail
 # Initial values
 
 lockFile="/var/lock/binlog-pull.lock"
@@ -120,7 +122,8 @@ function pullBinlogs () {
 
 function rotateBackups () {
         
-	find $backupPath -type f -name "${binPrefix}*" -mtime +30 -print | xargs /bin/rm
+	out=$(find $backupPath -type f -name "${binPrefix}*" -mtime +30 -print | xargs /bin/rm 2>&1)
+	verifyExecution "$?" "Error while removing old backups" true
 	
 }
 
@@ -136,6 +139,7 @@ function verifyAllRunning () {
 				verifyExecution "1"  "Error while restarting mysqlbinlog utility after $respawn attempts. Terminating the script" true
 			fi
 		fi
+		rotateBackups
 		sleep 30;
 	done
 
