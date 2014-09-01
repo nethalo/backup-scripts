@@ -16,7 +16,8 @@ logFile="/var/log/mysql/pull-binlogs.log"
 retention=30 # Retention in days
 mysqlUser=root
 mysqlPort=3306
-remoteHost=192.168.1.105
+mysqlPassword=""
+remoteHost=localhost
 binPrefix="mysql-bin"
 backupPath="/root/backups"
 respawn=3 # How many attempts to restart the mysqlbinlog process try
@@ -35,7 +36,7 @@ function sendAlert () {
 function destructor () {
         sendAlert
 	local latest=$(ls -1 $backupPath | grep $binPrefix | tail -1)
-        rm -f $lockFile $errorFile $backupPath/$latest
+        rm -f $lockFile $errorFile
 	
 }
 
@@ -76,6 +77,19 @@ function logInfo (){
         echo "[$(date +%y%m%d-%H:%M:%S)] $1" >> $logFile
 }
 
+function getBinlogSize () {
+	binlogSize=$(mysql -u${mysqlUser} --password=${mysqlPassword} -h${remoteHost} --port=${mysqlPort} -N -e"show variables like 'max_binlog_size'" 2> /dev/null | awk '{print $2}' 2>&1)
+	verifyExecution "$?"  "Error getting max_binlog_size $out"
+
+	if [ -z "$binlogSize" ]; then
+		binlogSize=1024
+		logInfo "[Warning] Cannot get max_binlog_size value, instead 1024 Bytes used"
+		return
+	fi
+
+	logInfo "[OK] max_binlog_size obtained: $binlogSize"
+}
+
 function verifyMysqlbinlog () {
 
         which mysqlbinlog &> /dev/null
@@ -91,7 +105,7 @@ function verifyMysqlbinlog () {
 }
 
 function findFirstBinlog () {
-        local first=$(mysql -u${mysqlUser} -h${remoteHost} --port=${mysqlPort} -N -e"show binary logs" | head -n1 | awk '{print $1}')
+        local first=$(mysql -u${mysqlUser} --password=${mysqlPassword} -h${remoteHost} --port=${mysqlPort} -N -e"show binary logs" 2> /dev/null | head -n1 | awk '{print $1}')
         echo $first
 }
 
@@ -103,7 +117,7 @@ function findLatestBinlog () {
 	msg="[OK] Found latest backup binlog: $latest"
         if [ -z "$latest" ]; then
                 latest=$(findFirstBinlog)
-		msg="[Warning] No binlog file founded on backup directory (${backupPath}). Using instead $latest as first file"
+		msg="[Warning] No binlog file founded on backup directory (${backupPath}). Using instead $latest as first file (obtained from SHOW BINARY LOGS)"
         fi
 	logInfo "$msg"
         popd &>/dev/null
@@ -112,22 +126,20 @@ function findLatestBinlog () {
 }
 
 function pullBinlogs () {
-
         firstBinlogFile=$(findLatestBinlog)
-	
 	pushd $backupPath &> /dev/null
 	
-	out=$(mysqlbinlog --raw --read-from-remote-server --stop-never --verify-binlog-checksum --user=${mysqlUser} --host=${remoteHost} --port=${mysqlPort} --stop-never-slave-server-id=54060 $firstBinlogFile 2>&1) &
+	out=$(mysqlbinlog --raw --read-from-remote-server --stop-never --verify-binlog-checksum --user=${mysqlUser} --password=${mysqlPassword} --host=${remoteHost} --port=${mysqlPort} --stop-never-slave-server-id=54060 $firstBinlogFile 2>&1) &
 	verifyExecution "$?"  "Error while launching mysqlbinlog utility. $out"
 	pidMysqlbinlog=$(pidof mysqlbinlog)
-	logInfo "[OK] Launched mysqlbinlog utility. Backup running: mysqlbinlog --raw --read-from-remote-server --stop-never --verify-binlog-checksum --user=${mysqlUser} --host=${remoteHost} --port=${mysqlPort} --stop-never-slave-server-id=54060 $firstBinlogFile"
+	logInfo "[OK] Launched mysqlbinlog utility. Backup running: mysqlbinlog --raw --read-from-remote-server --stop-never --verify-binlog-checksum --user=${mysqlUser} --password=XXXXX --host=${remoteHost} --port=${mysqlPort} --stop-never-slave-server-id=54060 $firstBinlogFile"
 
 	popd &>/dev/null
 }
 
 function rotateBackups () {
         
-	out=$(find $backupPath -type f -name "${binPrefix}*" -mtime +30 -print | xargs /bin/rm 2>&1)
+	out=$(find $backupPath -type f -name "${binPrefix}*" -mtime +${retention} -print | xargs /bin/rm 2>&1)
 	es=$?
 	if [ "$es" -ne 123 ]; then
 		verifyExecution "$es" "Error while removing old backups. $out" true
@@ -138,10 +150,22 @@ function rotateBackups () {
 function compressBinlogs () {
 	
 	pushd $backupPath &> /dev/null
-	
-	for i in $(ls -1 | grep $binPrefix | grep -v ".gz"); do
-		out=$(gzip $i 2>&1)
-		verifyExecution "$?"  "Error compressing binlog file ${i}. $out" true
+	local now=$(date +%s)
+	local skipFirst=1
+
+	for i in $(ls -1t | grep $binPrefix | grep -v ".gz"); do
+		if [ $skipFirst -eq 1 ]; then
+			skipFirst=0
+			continue;
+		fi
+		local created=$(stat -c %Y $i)
+		local diff=$(($now-$created))
+		local size=$(du -b $i | awk '{print $1}')
+
+		if [[ $size -ge $binlogSize || $diff -gt 300 ]]; then
+			out=$(gzip $i 2>&1)
+			verifyExecution "$?" "Error compressing binlog file ${i}. $out" true
+		fi
 	done
 
 	popd &>/dev/null
@@ -171,7 +195,6 @@ function verifyAllRunning () {
 
 setLockFile
 verifyMysqlbinlog
+getBinlogSize
 pullBinlogs
-
-compressBinlogs
 verifyAllRunning
