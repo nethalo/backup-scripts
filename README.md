@@ -14,7 +14,7 @@ Bash script for backup binlogs using the mysqlbinlog utility that comes with MyS
 To launch this script, run:
 
 ```
-  nohup ./pull_binlogs.sh > /var/log/mysql/pull_binlog.log 2>&1 /dev/null
+  nohup ./pull_binlog.sh > /var/log/mysql/pull_binlog.log 2>&1 /dev/null
 ```
 
 ## MyDumper backup
