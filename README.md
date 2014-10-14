@@ -6,6 +6,7 @@ Tools to enhance the MySQL Backup experience and make it easier (almost plug and
 All the scripts take care of the retention policy (defined by the user), as followed:
 
 - For MyDumper: User will define weekly and daily retention times.
+- For Mysqldump: User will define weekly and daily retention times.
 - For Mysqlbinlog user will define number of days that the binlog files will be keep it
 
 ## Binlog backup
@@ -19,8 +20,8 @@ To launch this script, run:
 
 ## MyDumper backup
 mydumper.sh
-Bash script used as a wraper of the [MyDumper](https://launchpad.net/mydumper "MyDumper") backup tool . Run this script as a daily cronjob
+Bash script used as a wraper of the [MyDumper](https://launchpad.net/mydumper "MyDumper") backup tool. Run this script as a daily cronjob
 
 ## Mysqldump backup
 mysqldump.sh
-Bash script used as a wraper of the classic mysqldump backup tool . Run this script as a daily cronjob
+Bash script used as a wraper of the classic mysqldump backup tool. Run this script as a daily cronjob
