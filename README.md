@@ -7,7 +7,8 @@ All the scripts take care of the retention policy (defined by the user), as foll
 
 - For MyDumper: User will define weekly and daily retention times.
 - For Mysqldump: User will define weekly and daily retention times.
-- For Mysqlbinlog user will define number of days that the binlog files will be keep it
+- For Mysqlbinlog: User will define number of days that the binlog files will be keep it
+- For XtraBackup: User will define weekly and daily retention times.
 
 ## Binlog backup
 pull-binlogs.sh
@@ -25,3 +26,8 @@ Bash script used as a wraper of the [MyDumper](https://launchpad.net/mydumper "M
 ## Mysqldump backup
 mysqldump.sh
 Bash script used as a wraper of the classic mysqldump backup tool. Run this script as a daily cronjob
+
+## XtraBackup script.
+xtrabackup.sh
+Bash script used as a wrapper of the Percona XtraBackup tool. Run this script as a daily cronjob. 
+It only takes care of full backups. Coming soon: Incremental backups
