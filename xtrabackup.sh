@@ -88,7 +88,7 @@ function runXtrabackup () {
 	verifyXtrabackup
 
 	out=$(innobackupex --user=$mysqlUser --slave-info --safe-slave-backup --parallel=4 --lock-wait-threshold=90 --lock-wait-query-type=all --lock-wait-timeout=300 --kill-long-queries-timeout=40 --kill-long-query-type=all --rsync --no-timestamp $backupPath > $logFile 2>&1)
-	verifyExecution "$?" "Problems executing innobackupex. $out"
+	verifyExecution "$?" "Problems executing innobackupex. $out" true
 	touch $backupPath/unprepared
 	logInfo "[OK] Innobackupex OK"
 	echo "Finished dump at: $(date "+%Y-%m-%d %H:%M:%S")" > $backupPath/.metadata
