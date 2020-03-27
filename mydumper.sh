@@ -13,7 +13,6 @@ set -o pipefail
 lockFile="/var/lock/mydumper-pull.lock"
 errorFile="/var/log/mysql/mydumper.err"
 logFile="/var/log/mysql/mydumper.log"
-retention=30 # Retention in days
 mysqlUser=root
 mysqlPort=3306
 #remoteHost=192.168.1.105
