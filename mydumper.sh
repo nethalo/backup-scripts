@@ -131,8 +131,8 @@ function removeOldBackup () {
 	
 	logInfo "[Info] Removing old backups"
 	for i in $(ls -1); do
-		day=$(cat $rootPath/$i/.metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}' 2>&1)
-		verifyExecution "$?" "Couldn't find $rootPath/$i/.metadata file. $day"
+		day=$(cat $rootPath/$i/metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}' 2>&1)
+		verifyExecution "$?" "Couldn't find $rootPath/$i/metadata file. $day"
 
 		backupTs=$(date --date="$day" +%s)
 
