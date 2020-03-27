@@ -20,7 +20,7 @@ backupPath="/root/backups/xtrabackup/$(date +%Y%m%d%H%M%S)/"
 weekly=4
 daily=7
 ######
-email="daniel.guzman.burgos@percona.com"
+email="root@localhost"
 
 # Function definitions
 

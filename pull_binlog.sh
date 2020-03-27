@@ -21,7 +21,7 @@ remoteHost=localhost
 binPrefix="mysql-bin"
 backupPath="/root/backups"
 respawn=3 # How many attempts to restart the mysqlbinlog process try
-email="daniel.guzman.burgos@percona.com"
+email="root@localhost"
 
 # Function definitions
 
