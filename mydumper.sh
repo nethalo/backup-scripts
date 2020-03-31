@@ -13,7 +13,6 @@ set -o pipefail
 lockFile="/var/lock/mydumper-pull.lock"
 errorFile="/var/log/mysql/mydumper.err"
 logFile="/var/log/mysql/mydumper.log"
-retention=30 # Retention in days
 mysqlUser=root
 mysqlPort=3306
 #remoteHost=192.168.1.105
@@ -131,8 +130,8 @@ function removeOldBackup () {
 	
 	logInfo "[Info] Removing old backups"
 	for i in $(ls -1); do
-		day=$(cat $rootPath/$i/.metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}' 2>&1)
-		verifyExecution "$?" "Couldn't find $rootPath/$i/.metadata file. $day"
+		day=$(cat $rootPath/$i/metadata | grep Finished | awk -F": " '{print $2}' | awk '{print $1}' 2>&1)
+		verifyExecution "$?" "Couldn't find $rootPath/$i/metadata file. $day"
 
 		backupTs=$(date --date="$day" +%s)
 
